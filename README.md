@@ -1,5 +1,5 @@
 # Virtual World Link
-Virtual World Link is an open source project that aims to facilitate wandering through interactive VR worlds a web browser.
+Virtual World Link is an open source project that aims to facilitate wandering through interactive VR worlds in a web browser.
 
 ## Code Structure
 * browser - browser implementations of VWL
