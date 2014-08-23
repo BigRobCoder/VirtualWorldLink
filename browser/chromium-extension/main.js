@@ -125,26 +125,12 @@ function handleMessage(message, sender) {
 
 chrome.browserAction.onClicked.addListener(function() {
 
-  // create fullscreen VWL window on HMD
-  if (vwlWindowId == null) {
+  // create VWL window
+  chrome.windows.create({url:'ctrl/ctrl.html'}, function(win) {
+    vwlWindowId == win.id;
+    tabInfoArray = [];
+  });
 
-    // in the future we may want to ask the HMD driver for the pixel offset,
-    // but for now just get it from the user
-    var hOff = prompt("Horizontal pixel offset", screen.width);
-
-    if (hOff !== null) {
-      chrome.windows.create({left:Number(hOff), url:'ctrl/ctrl.html'},
-      function(win) {
-        vwlWindowId = win.id
-        chrome.windows.update(vwlWindowId, {state:'fullscreen'});
-      });
-    }
-  }
-});
-chrome.windows.onRemoved.addListener(function(windowId) {
-  if (windowId == vwlWindowId) {
-    vwlWindowId = null;
-  }
 });
 
 chrome.tabs.onCreated.addListener(function(tab) {

@@ -1,7 +1,4 @@
-vr.load(function(error) {
-  if (error) {
-    alert('Plugin load failed: ' + error.toString());
-  }
+webVRHelper.init(function() {
 
   var scene = new THREE.Scene();
 
@@ -9,28 +6,31 @@ vr.load(function(error) {
   // create room
   //
 
-  var length = 32;
-  var geometry = new THREE.PlaneGeometry(length+1, length+1);
-  var material = new THREE.MeshBasicMaterial({color:0x000000});
+  var length = 4;
   var gridColor = new THREE.Color(0x406000);
-  createWall(0, 0.5, -0.5, 0, 0, 0);
-  createWall(0.5, 0.5, 0, 0, -0.5, 0);
-  createWall(0, 0.5, 0.5, 0, 1.0, 0);
-  createWall(-0.5, 0.5, 0, 0, 0.5, 0);
-  createWall(0, 1, 0, 0.5, 0, 0);
-  createWall(0, 0, 0, -0.5, 0, 0);
+  createWall(0, 0.5, -0.5, 0, 0, 0); // front
+  createWall(0.5, 0.5, 0, 0, -0.5, 0); // right
+  createWall(0, 0.5, 0.5, 0, 1.0, 0); // back
+  createWall(-0.5, 0.5, 0, 0, 0.5, 0); // left
+  createWall(0, 1, 0, 0.5, 0, 0); // ceiling
 
   function createWall(posX, posY, posZ, rotX, rotY, rotZ) {
-    var mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(posX*(length+1), posY*(length+1), posZ*(length+1));
-    mesh.rotation.set(rotX*Math.PI, rotY*Math.PI, rotZ*Math.PI);
-    scene.add(mesh);
-    var grid = new THREE.GridHelper(length/2, 2);
+    var grid = new THREE.GridHelper(length/2, length/16);
     grid.setColors(gridColor, gridColor);
     grid.position.set(posX*length, posY*length, posZ*length);
     grid.rotation.set((rotX+0.5)*Math.PI, rotZ*Math.PI, rotY*Math.PI);
     scene.add(grid);
   }
+
+  // create floor
+  /* black smear is ruining this floor :(
+  var geometry = new THREE.PlaneGeometry(length, length);
+  var material = new THREE.MeshBasicMaterial({color:0x060900});
+  var mesh = new THREE.Mesh(geometry, material);
+  mesh.rotation.set(-0.5 * Math.PI, 0, 0);
+  scene.add(mesh);
+  */
+  createWall(0, 0, 0, -0.5, 0, 0);
 
   //
   // create screen
@@ -41,10 +41,10 @@ vr.load(function(error) {
   ctrlCanvas.height = 400;
   var ctrlContext = ctrlCanvas.getContext('2d');
   var ctrlTexture = new THREE.Texture(ctrlCanvas);
-  var geometry = new THREE.PlaneGeometry(8, 8);
+  var geometry = new THREE.PlaneGeometry(1, 1);
   var material = new THREE.MeshBasicMaterial({map:ctrlTexture});
   var mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(0, 10.75, -6);
+  mesh.position.set(0, 1.35, -1.0);
   scene.add(mesh);
 
   // init vars
@@ -57,7 +57,7 @@ vr.load(function(error) {
         return;
       }
     }
-    errorScreen('Could not find bookmark folder \'vwl_worlds\'');
+    updateScreen('Could not find bookmark folder \'vwl_worlds\'');
 
     function searchNode(node) {
       if (node.title == 'vwl_worlds' && node.children) {
@@ -159,16 +159,20 @@ vr.load(function(error) {
     updateScreen();
 
     // listen for all events that should cause screen update
-    chrome.tabs.onCreated.addListener(updateScreen);
-    chrome.tabs.onRemoved.addListener(updateScreen);
-    chrome.tabs.onUpdated.addListener(updateScreen);
+    chrome.tabs.onCreated.addListener(function() {updateScreen()});
+    chrome.tabs.onRemoved.addListener(function() {updateScreen()});
+    chrome.tabs.onUpdated.addListener(function() {updateScreen()});
     chrome.tabs.onActivated.addListener(function(activeInfo) {
       if (ctrlScreenTabId != activeInfo.tabId) {
         activeTabId = activeInfo.tabId;
         updateScreen();
       }
     });
-    chrome.bookmarks.onCreated.addListener(updateScreen);
+    chrome.bookmarks.onCreated.addListener(function() {updateScreen()});
+    document.addEventListener(
+      "webkitfullscreenchange", function() {updateScreen()}, false);
+
+    // listen for key controls
     window.addEventListener('keydown', function(event) {
       switch(event.keyCode) {
       case 37: // Left
@@ -228,10 +232,13 @@ vr.load(function(error) {
           }
         });
       }
+      else if (command == 'reset-hmd-sensor') {
+        webVRHelper.resetHmdSensor();
+      }
     });
   }
 
-  function updateScreen() {
+  function updateScreen(message) {
     // init
     ctrlContext.fillStyle = 'black';
     ctrlContext.fillRect(0, 0, ctrlCanvas.width, ctrlCanvas.height);
@@ -242,6 +249,12 @@ vr.load(function(error) {
     ctrlContext.textBaseline = 'top';
     var textLine = 12;
     ctrlContext.font = '12px Lucida Console';
+
+    if (message || !document.webkitFullscreenElement) {
+      ctrlContext.fillText(message || 'Click me for VR!', 6, textLine);
+      ctrlTexture.needsUpdate = true;
+      return;
+    }
 
     // get info for display
     var tabs = undefined;
@@ -364,45 +377,10 @@ vr.load(function(error) {
     }
   }
 
-  function errorScreen(message) {
-    // init
-    ctrlContext.fillStyle = 'black';
-    ctrlContext.fillRect(0, 0, ctrlCanvas.width, ctrlCanvas.height);
-    ctrlContext.strokeStyle = '#00CC00';
-    ctrlContext.strokeRect(0, 0, ctrlCanvas.width, ctrlCanvas.height);
-    ctrlContext.fillStyle = '#00CC00';
-    ctrlContext.textAlign = 'left';
-    ctrlContext.textBaseline = 'top';
-    var textLine = 12;
-    ctrlContext.font = '12px Lucida Console';
-
-    ctrlContext.fillText(message, 6, textLine);
-  }
-
   // render
-  var camera = new THREE.PerspectiveCamera(
-    75, window.innerWidth / window.innerHeight, 1, 64);
-  var controls = new THREE.OculusRiftControls(camera, true);
-  scene.add(controls.getObject());
-  var renderer = new THREE.WebGLRenderer({
-    devicePixelRatio: 1,
-    alpha: false,
-    clearColor: 0xffffff,
-    antialias: true,
-    canvas: document.getElementById('canvas')
-  });
-  var effect = new THREE.OculusRiftEffect(renderer);
-  var time = Date.now();
-  var vrstate = new vr.State();
-  animate();
-
-  function animate() {
-    vr.requestAnimationFrame(animate);
-
-    vr.pollState(vrstate);
-    controls.update(Date.now() - time, vrstate);
-    effect.render(scene, camera, vrstate);
-
-    time = Date.now();
-  }
+  var view = new THREE.Object3D();
+  webVRHelper.createEyeCameras(view);
+  view.position.setY(1.6);
+  scene.add(view);
+  webVRHelper.animate(scene, view);
 });

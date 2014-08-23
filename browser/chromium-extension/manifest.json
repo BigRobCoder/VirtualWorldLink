@@ -28,6 +28,12 @@
         "default": "Ctrl+Up"
       },
       "description": "Bookmark current world"
+    },
+    "reset-hmd-sensor": {
+      "suggested_key": {
+        "default": "Ctrl+Home"
+      },
+      "description": "Reset the HMD's position and orientation"
     }
   }
 }
